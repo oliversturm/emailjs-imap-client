@@ -220,7 +220,7 @@ export function buildSORTCommand(sortProgram, query = {}, options = {}) {
     type: 'atom',
     value: isAscii ? 'US-ASCII' : 'UTF-8'
   }];
-  command.attributes = charsetTerm.concat(sortTerm, queryTerm);
+  command.attributes = sortTerm.concat(charsetTerm, queryTerm);
 
 
   return command

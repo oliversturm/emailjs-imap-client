@@ -4,6 +4,7 @@
 import { parser } from 'emailjs-imap-handler'
 import {
   parseSEARCH,
+  parseSORT,
   parseNAMESPACE,
   parseENVELOPE,
   parseSELECT,
@@ -473,5 +474,106 @@ describe('parseSEARCH', () => {
         }]
       }
     })).to.deep.equal([])
+  })
+})
+
+describe('parseSORT', () => {
+  it('should parse SORT response', () => {
+    expect(parseSORT({
+      "payload": {
+        "SORT": [
+          {
+            "tag": "*",
+            "command": "SORT",
+            "attributes": [
+              {
+                "type": "ATOM",
+                "value": "12"
+              },
+              {
+                "type": "ATOM",
+                "value": "13"
+              },
+              {
+                "type": "ATOM",
+                "value": "14"
+              },
+              {
+                "type": "ATOM",
+                "value": "15"
+              },
+              {
+                "type": "ATOM",
+                "value": "16"
+              },
+              {
+                "type": "ATOM",
+                "value": "2"
+              },
+              {
+                "type": "ATOM",
+                "value": "3"
+              },
+              {
+                "type": "ATOM",
+                "value": "4"
+              },
+              {
+                "type": "ATOM",
+                "value": "5"
+              },
+              {
+                "type": "ATOM",
+                "value": "6"
+              },
+              {
+                "type": "ATOM",
+                "value": "7"
+              },
+              {
+                "type": "ATOM",
+                "value": "8"
+              },
+              {
+                "type": "ATOM",
+                "value": "9"
+              },
+              {
+                "type": "ATOM",
+                "value": "1"
+              },
+              {
+                "type": "ATOM",
+                "value": "10"
+              },
+              {
+                "type": "ATOM",
+                "value": "11"
+              },
+              {
+                "type": "ATOM",
+                "value": "17"
+              },
+              {
+                "type": "ATOM",
+                "value": "18"
+              },
+              {
+                "type": "ATOM",
+                "value": "19"
+              },
+              {
+                "type": "ATOM",
+                "value": "20"
+              },
+              {
+                "type": "ATOM",
+                "value": "21"
+              }
+            ]
+          }
+        ]
+      }
+    })).to.deep.equal([12, 13, 14, 15, 16, 2, 3, 4, 5, 6, 7, 8, 9, 1, 10, 11, 17, 18, 19, 20, 21])
   })
 })

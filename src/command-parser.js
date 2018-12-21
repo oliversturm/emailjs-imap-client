@@ -451,12 +451,15 @@ export function parseSEARCH(response) {
 }
 
 
+// This differs from parseSEARCH in that we don't sort - 
+// no idea why parseSEARCH sorts, it's a waste of time,
+// but obviously for sorted returns we definitely don't 
+// want to do it.
 export function parseSORT(response) {
   return pipe(
     pathOr([], ['payload', 'SORT']),
     map(x => x.attributes || []),
     flatten,
-    map(nr => Number(propOr(nr || 0, 'value', nr)) || 0),
-    sort((a, b) => a > b)
+    map(nr => Number(propOr(nr || 0, 'value', nr)) || 0)
   )(response)
 }

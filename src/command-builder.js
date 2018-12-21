@@ -126,7 +126,9 @@ let buildTerm = (query) => {
       } else if (Array.isArray(param)) {
         return param.map(escapeParam)
       } else if (typeof param === 'object') {
-        return buildTerm(param)
+        const { term: innerTerm, isAscii: innerIsAscii } = buildTerm(param)
+        if (!innerIsAscii) isAscii = false
+        return innerTerm
       }
     }
 

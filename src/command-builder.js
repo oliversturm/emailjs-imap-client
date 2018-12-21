@@ -211,7 +211,7 @@ export function buildSORTCommand(sortProgram, query = {}, options = {}) {
     command: options.byUid ? 'UID SORT' : 'SORT'
   }
 
-  const { queryTerm: term, isAscii } = buildTerm(query)
+  const { term: queryTerm, isAscii } = buildTerm(query)
   const sortTerm = [{ type: 'SEQUENCE', value: sortProgram }]
   const charsetTerm = [{
     type: 'atom',

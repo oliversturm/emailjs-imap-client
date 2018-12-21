@@ -4,12 +4,14 @@ import {
   parseNAMESPACE,
   parseSELECT,
   parseFETCH,
-  parseSEARCH
+  parseSEARCH,
+  parseSORT
 } from './command-parser'
 import {
   buildFETCHCommand,
   buildXOAuth2Token,
   buildSEARCHCommand,
+  buildSORTCommand,
   buildSTORECommand
 } from './command-builder'
 
@@ -51,7 +53,7 @@ export const DEFAULT_CLIENT_ID = {
  * @param {Object} [options] Optional options object
  */
 export default class Client {
-  constructor (host, port, options = {}) {
+  constructor(host, port, options = {}) {
     this.timeoutConnection = TIMEOUT_CONNECTION
     this.timeoutNoop = TIMEOUT_NOOP
     this.timeoutIdle = TIMEOUT_IDLE
@@ -100,7 +102,7 @@ export default class Client {
    * Called if the lower-level ImapClient has encountered an unrecoverable
    * error during operation. Cleans up and propagates the error upwards.
    */
-  _onError (err) {
+  _onError(err) {
     // make sure no idle timeout is pending anymore
     clearTimeout(this._idleTimeout)
 
@@ -119,7 +121,7 @@ export default class Client {
    *
    * @returns {Promise} Promise when login procedure is complete
    */
-  async connect () {
+  async connect() {
     try {
       await this._openConnection()
       this._changeState(STATE_NOT_AUTHENTICATED)
@@ -142,7 +144,7 @@ export default class Client {
     }
   }
 
-  _openConnection () {
+  _openConnection() {
     return new Promise((resolve, reject) => {
       let connectionTimeout = setTimeout(() => reject(new Error('Timeout connecting to server')), this.timeoutConnection)
       this.logger.debug('Connecting to', this.client.host, ':', this.client.port)
@@ -175,7 +177,7 @@ export default class Client {
    *
    * @returns {Promise} Resolves when server has closed the connection
    */
-  async logout () {
+  async logout() {
     this._changeState(STATE_LOGOUT)
     this.logger.debug('Logging out...')
     await this.client.logout()
@@ -187,7 +189,7 @@ export default class Client {
    *
    * @returns {Promise} Resolves when socket is closed
    */
-  async close (err) {
+  async close(err) {
     this._changeState(STATE_LOGOUT)
     clearTimeout(this._idleTimeout)
     this.logger.debug('Closing connection...')
@@ -204,13 +206,13 @@ export default class Client {
    * @param {Object} id ID as JSON object. See http://tools.ietf.org/html/rfc2971#section-3.3 for possible values
    * @returns {Promise} Resolves when response has been parsed
    */
-  async updateId (id) {
+  async updateId(id) {
     if (this._capability.indexOf('ID') < 0) return
 
     this.logger.debug('Updating id...')
 
     const command = 'ID'
-    const attributes = id ? [ flatten(Object.entries(id)) ] : [ null ]
+    const attributes = id ? [flatten(Object.entries(id))] : [null]
     const response = await this.exec({ command, attributes }, 'ID')
     const list = flatten(pathOr([], ['payload', 'ID', '0', 'attributes', '0'], response).map(Object.values))
     const keys = list.filter((_, i) => i % 2 === 0)
@@ -219,7 +221,7 @@ export default class Client {
     this.logger.debug('Server id updated!', this.serverId)
   }
 
-  _shouldSelectMailbox (path, ctx) {
+  _shouldSelectMailbox(path, ctx) {
     if (!ctx) {
       return true
     }
@@ -247,7 +249,7 @@ export default class Client {
    * @param {Object} [options] Options object
    * @returns {Promise} Promise with information about the selected mailbox
    */
-  async selectMailbox (path, options = {}) {
+  async selectMailbox(path, options = {}) {
     let query = {
       command: options.readOnly ? 'EXAMINE' : 'SELECT',
       attributes: [{ type: 'STRING', value: path }]
@@ -282,7 +284,7 @@ export default class Client {
    *
    * @returns {Promise} Promise with namespace object
    */
-  async listNamespaces () {
+  async listNamespaces() {
     if (this._capability.indexOf('NAMESPACE') < 0) return false
 
     this.logger.debug('Listing namespaces...')
@@ -300,7 +302,7 @@ export default class Client {
    *
    * @returns {Promise} Promise with list of mailboxes
    */
-  async listMailboxes () {
+  async listMailboxes() {
     const tree = { root: true, children: [] }
 
     this.logger.debug('Listing mailboxes...')
@@ -313,7 +315,7 @@ export default class Client {
       const path = pathOr('', ['2', 'value'], attr)
       const delim = pathOr('/', ['1', 'value'], attr)
       const branch = this._ensurePath(tree, path, delim)
-      branch.flags = propOr([], '0', attr).map(({value}) => value || '')
+      branch.flags = propOr([], '0', attr).map(({ value }) => value || '')
       branch.listed = true
       checkSpecialUse(branch)
     })
@@ -347,7 +349,7 @@ export default class Client {
    *     Promise resolves if mailbox was created.
    *     In the event the server says NO [ALREADYEXISTS], we treat that as success.
    */
-  async createMailbox (path) {
+  async createMailbox(path) {
     this.logger.debug('Creating mailbox', path, '...')
     try {
       await this.exec({ command: 'CREATE', attributes: [imapEncode(path)] })
@@ -371,7 +373,7 @@ export default class Client {
    * @returns {Promise}
    *     Promise resolves if mailbox was deleted.
    */
-  deleteMailbox (path) {
+  deleteMailbox(path) {
     this.logger.debug('Deleting mailbox', path, '...')
     return this.exec({ command: 'DELETE', attributes: [imapEncode(path)] })
   }
@@ -390,7 +392,7 @@ export default class Client {
    * @param {Object} [options] Query modifiers
    * @returns {Promise} Promise with the fetched message info
    */
-  async listMessages (path, sequence, items = [{ fast: true }], options = {}) {
+  async listMessages(path, sequence, items = [{ fast: true }], options = {}) {
     this.logger.debug('Fetching messages', sequence, 'from', path, '...')
     const command = buildFETCHCommand(sequence, items, options)
     const response = await this.exec(command, 'FETCH', {
@@ -410,13 +412,34 @@ export default class Client {
    * @param {Object} [options] Query modifiers
    * @returns {Promise} Promise with the array of matching seq. or uid numbers
    */
-  async search (path, query, options = {}) {
+  async search(path, query, options = {}) {
     this.logger.debug('Searching in', path, '...')
     const command = buildSEARCHCommand(query, options)
     const response = await this.exec(command, 'SEARCH', {
       precheck: (ctx) => this._shouldSelectMailbox(path, ctx) ? this.selectMailbox(path, { ctx }) : Promise.resolve()
     })
     return parseSEARCH(response)
+  }
+
+  /**
+   * Runs SORT command
+   *
+   * SORT details:
+   *   https://tools.ietf.org/html/rfc5256#section-3
+   *
+   * @param {String} path The path for the mailbox which should be selected for the command. Selects mailbox if necessary
+   * @param {Object} sortProgram Sort criteria
+   * @param {Object} query Search terms
+   * @param {Object} [options] Query modifiers
+   * @returns {Promise} Promise with the array of matching seq. or uid numbers
+   */
+  async sort(path, sortProgram, query, options = {}) {
+    this.logger.debug('Sorting in', path, '...')
+    const command = buildSORTCommand(sortProgram, query, options)
+    const response = await this.exec(command, 'SORT', {
+      precheck: (ctx) => this._shouldSelectMailbox(path, ctx) ? this.selectMailbox(path, { ctx }) : Promise.resolve()
+    })
+    return parseSORT(response)
   }
 
   /**
@@ -431,7 +454,7 @@ export default class Client {
    * @param {Object} [options] Query modifiers
    * @returns {Promise} Promise with the array of matching seq. or uid numbers
    */
-  setFlags (path, sequence, flags, options) {
+  setFlags(path, sequence, flags, options) {
     let key = ''
     let list = []
 
@@ -466,7 +489,7 @@ export default class Client {
    * @param {Object} [options] Query modifiers
    * @returns {Promise} Promise with the array of matching seq. or uid numbers
    */
-  async store (path, sequence, action, flags, options = {}) {
+  async store(path, sequence, action, flags, options = {}) {
     const command = buildSTORECommand(sequence, action, flags, options)
     const response = await this.exec(command, 'FETCH', {
       precheck: (ctx) => this._shouldSelectMailbox(path, ctx) ? this.selectMailbox(path, { ctx }) : Promise.resolve()
@@ -485,7 +508,7 @@ export default class Client {
    * @param {Array} options.flags Any flags you want to set on the uploaded message. Defaults to [\Seen]. (optional)
    * @returns {Promise} Promise with the array of matching seq. or uid numbers
    */
-  upload (destination, message, options = {}) {
+  upload(destination, message, options = {}) {
     let flags = propOr(['\\Seen'], 'flags', options).map(value => ({ type: 'atom', value }))
     let command = {
       command: 'APPEND',
@@ -519,7 +542,7 @@ export default class Client {
    * @param {Object} [options] Query modifiers
    * @returns {Promise} Promise
    */
-  async deleteMessages (path, sequence, options = {}) {
+  async deleteMessages(path, sequence, options = {}) {
     // add \Deleted flag to the messages and run EXPUNGE or UID EXPUNGE
     this.logger.debug('Deleting messages', sequence, 'in', path, '...')
     const useUidPlus = options.byUid && this._capability.indexOf('UIDPLUS') >= 0
@@ -545,7 +568,7 @@ export default class Client {
    * @param {Boolean} [options.byUid] If true, uses UID COPY instead of COPY
    * @returns {Promise} Promise
    */
-  async copyMessages (path, sequence, destination, options = {}) {
+  async copyMessages(path, sequence, destination, options = {}) {
     this.logger.debug('Copying messages', sequence, 'from', path, 'to', destination, '...')
     const { humanReadable } = await this.exec({
       command: options.byUid ? 'UID COPY' : 'COPY',
@@ -554,8 +577,8 @@ export default class Client {
         { type: 'atom', value: destination }
       ]
     }, null, {
-      precheck: (ctx) => this._shouldSelectMailbox(path, ctx) ? this.selectMailbox(path, { ctx }) : Promise.resolve()
-    })
+        precheck: (ctx) => this._shouldSelectMailbox(path, ctx) ? this.selectMailbox(path, { ctx }) : Promise.resolve()
+      })
     return humanReadable || 'COPY completed'
   }
 
@@ -573,7 +596,7 @@ export default class Client {
    * @param {Object} [options] Query modifiers
    * @returns {Promise} Promise
    */
-  async moveMessages (path, sequence, destination, options = {}) {
+  async moveMessages(path, sequence, destination, options = {}) {
     this.logger.debug('Moving messages', sequence, 'from', path, 'to', destination, '...')
 
     if (this._capability.indexOf('MOVE') === -1) {
@@ -590,8 +613,8 @@ export default class Client {
         { type: 'atom', value: destination }
       ]
     }, ['OK'], {
-      precheck: (ctx) => this._shouldSelectMailbox(path, ctx) ? this.selectMailbox(path, { ctx }) : Promise.resolve()
-    })
+        precheck: (ctx) => this._shouldSelectMailbox(path, ctx) ? this.selectMailbox(path, { ctx }) : Promise.resolve()
+      })
   }
 
   /**
@@ -600,7 +623,7 @@ export default class Client {
    * COMPRESS details:
    *   https://tools.ietf.org/html/rfc4978
    */
-  async compressConnection () {
+  async compressConnection() {
     if (!this._enableCompression || this._capability.indexOf('COMPRESS=DEFLATE') < 0 || this.client.compressed) {
       return false
     }
@@ -629,7 +652,7 @@ export default class Client {
    * @param {String} auth.pass
    * @param {String} auth.xoauth2
    */
-  async login (auth) {
+  async login(auth) {
     let command
     let options = {}
 
@@ -687,7 +710,7 @@ export default class Client {
    * @param {Object} request Structured request object
    * @param {Array} acceptUntagged a list of untagged responses that will be included in 'payload' property
    */
-  async exec (request, acceptUntagged, options) {
+  async exec(request, acceptUntagged, options) {
     this.breakIdle()
     const response = await this.client.enqueueCommand(request, acceptUntagged, options)
     if (response && response.capability) {
@@ -702,7 +725,7 @@ export default class Client {
    * IDLE details:
    *   https://tools.ietf.org/html/rfc2177
    */
-  enterIdle () {
+  enterIdle() {
     if (this._enteredIdle) {
       return
     }
@@ -729,7 +752,7 @@ export default class Client {
   /**
    * Stops actions related idling, if IDLE is supported, sends DONE to stop it
    */
-  breakIdle () {
+  breakIdle() {
     if (!this._enteredIdle) {
       return
     }
@@ -750,7 +773,7 @@ export default class Client {
    *
    * @param {Boolean} [forced] By default the command is not run if capability is already listed. Set to true to skip this validation
    */
-  async upgradeConnection () {
+  async upgradeConnection() {
     // skip request, if already secured
     if (this.client.secureMode) {
       return false
@@ -779,7 +802,7 @@ export default class Client {
    *
    * @param {Boolean} [forced] By default the command is not run if capability is already listed. Set to true to skip this validation
    */
-  async updateCapability (forced) {
+  async updateCapability(forced) {
     // skip request, if not forced update and capabilities are already loaded
     if (!forced && this._capability.length) {
       return
@@ -795,7 +818,7 @@ export default class Client {
     return this.exec('CAPABILITY')
   }
 
-  hasCapability (capa = '') {
+  hasCapability(capa = '') {
     return this._capability.indexOf(capa.toUpperCase().trim()) >= 0
   }
 
@@ -807,7 +830,7 @@ export default class Client {
    * @param {Object} response Parsed server response
    * @param {Function} next Until called, server responses are not processed
    */
-  _untaggedOkHandler (response) {
+  _untaggedOkHandler(response) {
     if (response && response.capability) {
       this._capability = response.capability
     }
@@ -819,10 +842,10 @@ export default class Client {
    * @param {Object} response Parsed server response
    * @param {Function} next Until called, server responses are not processed
    */
-  _untaggedCapabilityHandler (response) {
+  _untaggedCapabilityHandler(response) {
     this._capability = pipe(
       propOr([], 'attributes'),
-      map(({value}) => (value || '').toUpperCase().trim())
+      map(({ value }) => (value || '').toUpperCase().trim())
     )(response)
   }
 
@@ -832,7 +855,7 @@ export default class Client {
    * @param {Object} response Parsed server response
    * @param {Function} next Until called, server responses are not processed
    */
-  _untaggedExistsHandler (response) {
+  _untaggedExistsHandler(response) {
     if (response && response.hasOwnProperty('nr')) {
       this.onupdate && this.onupdate(this._selectedMailbox, 'exists', response.nr)
     }
@@ -844,7 +867,7 @@ export default class Client {
    * @param {Object} response Parsed server response
    * @param {Function} next Until called, server responses are not processed
    */
-  _untaggedExpungeHandler (response) {
+  _untaggedExpungeHandler(response) {
     if (response && response.hasOwnProperty('nr')) {
       this.onupdate && this.onupdate(this._selectedMailbox, 'expunge', response.nr)
     }
@@ -856,7 +879,7 @@ export default class Client {
    * @param {Object} response Parsed server response
    * @param {Function} next Until called, server responses are not processed
    */
-  _untaggedFetchHandler (response) {
+  _untaggedFetchHandler(response) {
     this.onupdate && this.onupdate(this._selectedMailbox, 'fetch', [].concat(parseFETCH({ payload: { FETCH: [response] } }) || []).shift())
   }
 
@@ -866,7 +889,7 @@ export default class Client {
    * Indicates that the connection started idling. Initiates a cycle
    * of NOOPs or IDLEs to receive notifications about updates in the server
    */
-  _onIdle () {
+  _onIdle() {
     if (!this._authenticated || this._enteredIdle) {
       // No need to IDLE when not logged in or already idling
       return
@@ -881,7 +904,7 @@ export default class Client {
    *
    * @param {Number} newState The state you want to change to
    */
-  _changeState (newState) {
+  _changeState(newState) {
     if (newState === this._state) {
       return
     }
@@ -905,7 +928,7 @@ export default class Client {
    * @param {String} delimiter
    * @return {Object} branch for used path
    */
-  _ensurePath (tree, path, delimiter) {
+  _ensurePath(tree, path, delimiter) {
     const names = path.split(delimiter)
     let branch = tree
 
@@ -938,11 +961,11 @@ export default class Client {
    * @param {String} b Mailbox name
    * @returns {Boolean} True if the folder names match
    */
-  _compareMailboxNames (a, b) {
+  _compareMailboxNames(a, b) {
     return (a.toUpperCase() === 'INBOX' ? 'INBOX' : a) === (b.toUpperCase() === 'INBOX' ? 'INBOX' : b)
   }
 
-  createLogger (creator = createDefaultLogger) {
+  createLogger(creator = createDefaultLogger) {
     const logger = creator((this._auth || {}).user || '', this._host)
     this.logger = this.client.logger = {
       debug: (...msgs) => { if (LOG_LEVEL_DEBUG >= this.logLevel) { logger.debug(msgs) } },

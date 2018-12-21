@@ -9,7 +9,7 @@ import { mimeWordEncode, mimeWordsDecode } from 'emailjs-mime-codec'
  * @param {Object} response
  * @return {Object} Namespaces object
  */
-export function parseNAMESPACE (response) {
+export function parseNAMESPACE(response) {
   if (!response.payload || !response.payload.NAMESPACE || !response.payload.NAMESPACE.length) {
     return false
   }
@@ -32,7 +32,7 @@ export function parseNAMESPACE (response) {
  * @param {Object} element
  * @return {Object} Namespaces element object
  */
-export function parseNAMESPACEElement (element) {
+export function parseNAMESPACEElement(element) {
   if (!element) {
     return false
   }
@@ -56,7 +56,7 @@ export function parseNAMESPACEElement (element) {
  * @param {Object} response
  * @return {Object} Mailbox information object
  */
-export function parseSELECT (response) {
+export function parseSELECT(response) {
   if (!response || !response.payload) {
     return
   }
@@ -107,7 +107,7 @@ export function parseSELECT (response) {
  * @param {Array} value Envelope array
  * @param {Object} Envelope object
  */
-export function parseENVELOPE (value) {
+export function parseENVELOPE(value) {
   let envelope = {}
 
   if (value[0] && value[0].value) {
@@ -161,7 +161,7 @@ export function parseENVELOPE (value) {
  * to addressparser and uses resulting values instead of the
  * pre-parsed addresses
  */
-function processAddresses (list = []) {
+function processAddresses(list = []) {
   return list.map((addr) => {
     const name = (pathOr('', ['0', 'value'], addr)).trim()
     const address = (pathOr('', ['2', 'value'], addr)) + '@' + (pathOr('', ['3', 'value'], addr))
@@ -178,7 +178,7 @@ function processAddresses (list = []) {
  * @param {String} name Name part of an address
  * @returns {String} Mime word encoded or quoted string
  */
-function encodeAddressName (name) {
+function encodeAddressName(name) {
   if (!/^[\w ']*$/.test(name)) {
     if (/^[\x20-\x7e]*$/.test(name)) {
       return JSON.stringify(name)
@@ -195,7 +195,7 @@ function encodeAddressName (name) {
  * @param {Array} value BODYSTRUCTURE array
  * @param {Object} Envelope object
  */
-export function parseBODYSTRUCTURE (node, path = []) {
+export function parseBODYSTRUCTURE(node, path = []) {
   let curNode = {}
   let i = 0
   let part = 0
@@ -340,7 +340,7 @@ export function parseBODYSTRUCTURE (node, path = []) {
   return curNode
 }
 
-function attributesToObject (attrs = [], keyTransform = toLower, valueTransform = mimeWordsDecode) {
+function attributesToObject(attrs = [], keyTransform = toLower, valueTransform = mimeWordsDecode) {
   const vals = attrs.map(prop('value'))
   const keys = vals.filter((_, i) => i % 2 === 0).map(keyTransform)
   const values = vals.filter((_, i) => i % 2 === 1).map(valueTransform)
@@ -353,7 +353,7 @@ function attributesToObject (attrs = [], keyTransform = toLower, valueTransform 
  * @param {Object} response
  * @return {Object} Message object
  */
-export function parseFETCH (response) {
+export function parseFETCH(response) {
   if (!response || !response.payload || !response.payload.FETCH || !response.payload.FETCH.length) {
     return []
   }
@@ -397,7 +397,7 @@ export function parseFETCH (response) {
  * @param {Mized} value Value for the key
  * @return {Mixed} Processed value
  */
-function parseFetchValue (key, value) {
+function parseFetchValue(key, value) {
   if (!value) {
     return null
   }
@@ -440,9 +440,20 @@ function parseFetchValue (key, value) {
  * @return {Object} Message object
  * @param {Array} Sorted Seq./UID number list
  */
-export function parseSEARCH (response) {
+export function parseSEARCH(response) {
   return pipe(
     pathOr([], ['payload', 'SEARCH']),
+    map(x => x.attributes || []),
+    flatten,
+    map(nr => Number(propOr(nr || 0, 'value', nr)) || 0),
+    sort((a, b) => a > b)
+  )(response)
+}
+
+
+export function parseSORT(response) {
+  return pipe(
+    pathOr([], ['payload', 'SORT']),
     map(x => x.attributes || []),
     flatten,
     map(nr => Number(propOr(nr || 0, 'value', nr)) || 0),

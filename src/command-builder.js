@@ -206,6 +206,26 @@ export function buildSEARCHCommand(query = {}, options = {}) {
   return command
 }
 
+export function buildSORTCommand(sortProgram, query = {}, options = {}) {
+  let command = {
+    command: options.byUid ? 'UID SORT' : 'SORT'
+  }
+
+  const { queryTerm: term, isAscii } = buildTerm(query)
+  const sortTerm = [{ type: 'SEQUENCE', value: sortProgram }]
+  const charsetTerm = [{
+    type: 'atom',
+    value: 'CHARSET'
+  }, {
+    type: 'atom',
+    value: isAscii ? 'US-ASCII' : 'UTF-8'
+  }];
+  command.attributes = charsetTerm.concat(sortTerm, queryTerm);
+
+
+  return command
+}
+
 /**
  * Creates an IMAP STORE command from the selected arguments
  */

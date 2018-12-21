@@ -2,7 +2,8 @@ import {
   buildSTORECommand,
   buildFETCHCommand,
   buildXOAuth2Token,
-  buildSEARCHCommand
+  buildSEARCHCommand,
+  buildSORTCommand
 } from './command-builder'
 
 describe('buildFETCHCommand', () => {
@@ -170,6 +171,34 @@ describe('buildFETCHCommand', () => {
 describe('#_buildXOAuth2Token', () => {
   it('should return base64 encoded XOAUTH2 token', () => {
     expect(buildXOAuth2Token('user@host', 'abcde')).to.equal('dXNlcj11c2VyQGhvc3QBYXV0aD1CZWFyZXIgYWJjZGUBAQ==')
+  })
+})
+
+describe('buildSORTCommand', () => {
+  it('should compose a sort command', () => {
+    expect(buildSORTCommand(['DATE', 'REVERSE FROM'], { unseen: true }, {})).to.deep.equal({
+      command: 'SORT',
+      attributes: [
+        [
+          {
+            type: 'ATOM',
+            value: 'DATE'
+          },
+          {
+            type: 'ATOM',
+            value: 'REVERSE FROM'
+          }
+        ],
+        {
+          type: 'ATOM',
+          value: 'US-ASCII'
+        },
+        {
+          type: 'atom',
+          value: 'UNSEEN'
+        }
+      ]
+    })
   })
 })
 

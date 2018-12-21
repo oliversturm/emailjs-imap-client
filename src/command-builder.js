@@ -206,13 +206,13 @@ export function buildSEARCHCommand(query = {}, options = {}) {
   return command
 }
 
-export function buildSORTCommand(sortProgram, query = {}, options = {}) {
+export function buildSORTCommand(sortProgram = [], query = {}, options = {}) {
   let command = {
     command: options.byUid ? 'UID SORT' : 'SORT'
   }
 
   const { term: queryTerm, isAscii } = buildTerm(query)
-  const sortTerm = [{ type: 'SEQUENCE', value: sortProgram }]
+  const sortTerm = sortProgram.map(s => ({ type: 'ATOM', value: s }));
   const charsetTerm = [{
     type: 'atom',
     value: 'CHARSET'

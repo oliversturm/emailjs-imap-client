@@ -439,7 +439,10 @@ export default class Client {
     const response = await this.exec(command, 'SORT', {
       precheck: (ctx) => this._shouldSelectMailbox(path, ctx) ? this.selectMailbox(path, { ctx }) : Promise.resolve()
     })
-    return parseSORT(response)
+    this.logger.debug('Sort response is ', JSON.stringify(response))
+    const result = parseSORT(response)
+    this.logger.debug('Parsed sort result is ', JSON.stringify(result))
+    return result
   }
 
   /**

@@ -434,15 +434,19 @@ export default class Client {
    * @returns {Promise} Promise with the array of matching seq. or uid numbers
    */
   async sort(path, sortProgram, query, options = {}) {
-    this.logger.debug('Sorting in', path, '...')
-    const command = buildSORTCommand(sortProgram, query, options)
-    const response = await this.exec(command, 'SORT', {
-      precheck: (ctx) => this._shouldSelectMailbox(path, ctx) ? this.selectMailbox(path, { ctx }) : Promise.resolve()
-    })
-    this.logger.debug('Sort response is ', JSON.stringify(response))
-    const result = parseSORT(response)
-    this.logger.debug('Parsed sort result is ', JSON.stringify(result))
-    return result
+    if (this._capability.indexOf('SORT') >= 0) {
+      this.logger.debug('Sorting in', path, '...')
+      const command = buildSORTCommand(sortProgram, query, options)
+      const response = await this.exec(command, 'SORT', {
+        precheck: (ctx) => this._shouldSelectMailbox(path, ctx) ? this.selectMailbox(path, { ctx }) : Promise.resolve()
+      })
+
+      return parseSORT(response)
+    }
+    else {
+      this.logger.debug('SORT capability is not supported')
+      return null
+    }
   }
 
   /**

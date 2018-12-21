@@ -212,7 +212,7 @@ export function buildSORTCommand(sortProgram = [], query = {}, options = {}) {
   }
 
   const { term: queryTerm, isAscii } = buildTerm(query)
-  const sortTerm = sortProgram.map(s => ({ type: 'ATOM', value: s }));
+  const sortTerm = [sortProgram.map(s => ({ type: 'ATOM', value: s }))];
   const charsetTerm = [{
     type: 'atom',
     value: 'CHARSET'
